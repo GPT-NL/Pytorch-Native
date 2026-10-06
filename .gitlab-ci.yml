@@ -1,0 +1,23 @@
+include:
+  - project: 'gpt-nl/software-development/sigrid-ci'
+    file: '/sigrid.yml'
+
+image: python:3.11
+
+# test:
+#   before_script:
+#     # setup for ssh cloning for energy-utils
+#     - mkdir -p ~/.ssh && touch ~/.ssh/known_hosts
+#     - ssh-keygen -R ci.tno.nl
+#     # use new versions, to allow installing from pyproject.toml
+#     - pip install -U pip setuptools wheel
+#     # install package
+#     - pip install -e .[all]
+#   script:
+#     - pytest --junitxml=tests_report.xml
+#   tags:
+#     - gptnl-basic-docker
+#   artifacts:
+#     when: always
+#     reports:
+#       junit: tests_report.xml

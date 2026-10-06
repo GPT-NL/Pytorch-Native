@@ -1,0 +1,37 @@
+# Context reconstruction config.
+# Default: linear merge with 15% BASE and 85% MID-TRAINED (PRISM §8.1).
+# Output inherits the MID-TRAINED checkpoint's max_position_embeddings / rope_theta / rope_scaling.
+
+# -----------------------------------------------------------------------------
+# I/O — local paths or HuggingFace hub ids
+# -----------------------------------------------------------------------------
+base_model: /INSERT-GPT-NL-TRAINING-DIR/converted_checkpoints/gpt-nl-26B-nodes-22-mbs-1-gas-4-20207326/step143788         # short-context BASE checkpoint (e.g. 4k)
+# mid_trained_model: /INSERT-GPT-NL-TRAINING-DIR/converted_checkpoints/gpt-nl-26B-nodes-22-mbs-2-gas-4-22812414/step146084   # the old one with wrong LR
+mid_trained_model: /INSERT-GPT-NL-TRAINING-DIR/converted_checkpoints/gpt-nl-26B-nodes-22-mbs-2-gas-4-24039324/step146084   # mid-trained checkpoint whose config is inherited
+output_dir: /INSERT-GPT-NL-TRAINING-DIR/merged_checkpoints/{mid_name}-merged-{method}-b{base_weight}-fix-lr    # placeholders: {mid_name} {base_name} {method} {base_weight} {dtype}. $USER, ${VAR}, ~ also expand
+
+# -----------------------------------------------------------------------------
+# Merge
+# -----------------------------------------------------------------------------
+method: linear                                  # linear | slerp | ties | dare_ties | task_arithmetic | sce
+base_weight: 0.15                               # BASE weight; MID gets (1 - base_weight). Used by linear/ties/dare_ties/task_arithmetic
+dtype: bfloat16                                 # bfloat16 | float16 | float32
+
+# Method-specific knobs. Unused keys are silently ignored unless mergekit rejects them.
+# Uncomment the ones relevant to your chosen method.
+method_params:
+  normalize: true                               # linear/ties/dare_ties/task_arithmetic: re-normalize weights to sum to 1
+  # t: 0.5                                      # slerp: interpolation coefficient (0 = MID, 1 = BASE)
+  # density: 0.5                                # ties/dare_ties: fraction of BASE delta parameters to keep
+  # select_topk: 1.0                            # sce: fraction of experts to retain
+  # int8_mask: false                            # sce: use int8 sign mask
+
+# -----------------------------------------------------------------------------
+# Runtime
+# -----------------------------------------------------------------------------
+device: cuda                                    # cuda | cpu
+trust_remote_code: false                        # enable only if the mid-trained arch needs custom modeling code
+low_cpu_memory: true                            # required for 27B+ — mergekit streams tensors one at a time
+lazy_unpickle: true                             # required for 27B+ — defers tensor materialization
+seed: 0                                         # seeds stochastic methods (DARE)
+skip_sanity_check: false                        # set true to skip the post-merge AutoModelForCausalLM reload (saves minutes on 27B)

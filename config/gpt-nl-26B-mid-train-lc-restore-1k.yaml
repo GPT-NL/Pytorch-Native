@@ -1,0 +1,89 @@
+# /INSERT-GPT-NL-TRAINING-DIR/mid-train
+
+num_nodes: ${oc.env:SLURM_JOB_NUM_NODES,1}
+seed: 47
+per_device_batch_size: ${oc.env:PER_DEVICE_BATCH_SIZE,2}
+gradient_accumulation_steps: ${oc.env:GRADIENT_ACCUMULATION_STEPS,4}
+
+# Training setup
+max_duration:
+  steps: 100 # PRISM was 1k over 25k (4%), here we have 100 over 2296 (4.3%)
+hard_stop: ${oc.env:HARD_STOP,-1}
+load_path: ${oc.env:LOAD_PATH, null}
+
+# Model
+model_name: llama3-26B
+sequence_length: 32768  # restoring long context
+tokenizer_name: gpt-nl
+model_compile: true
+use_flash_attention_2: true
+
+
+# Checkpoint
+save_dir: ${oc.env:CHECKPOINT_DIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/checkpoints/${model_name}-mbs-${per_device_batch_size}-gas-${gradient_accumulation_steps}-${oc.env:SLURM_JOB_ID,""}}
+work_dir: ${oc.env:TMPDIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/${oc.env:USER}}
+save_interval: 880 # to do perfect resume on (22, 20, 11, 10, 5, 2) nodes without data repetition # https://ci.tno.nl/gitlab/gpt-nl/model-development/pytorch_native/-/issues/15. 
+ephemeral_save_interval: 110 # with this one still can do perfect resume on (22, 11, 10, 5, 2) nodes
+save_async: true
+
+# Data 
+num_workers: 0
+# context-lengthening data
+data_root: /INSERT-GPT-NL-TRAINING-DIR/context_lengthening/phase3_annealing_context_lengthening_mix/mix_annealing_only_20260302_085042/*.npy
+restart_with_new_data: true
+data_root_val:
+  # Mid Training
+  - /INSERT-GPT-NL-TRAINING-DIR/instruction-finetuning/rl-datasets/final/midtraining/test/*.npy
+  # Epoch 2
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/code/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/dutch_high_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/dutch_low_medium_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/english_high_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/english_low_medium_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/new_high_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/new_low_medium_quality/*.npy
+  - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/other_languages/*.npy
+
+
+# Evaluation
+evaluation:
+  lm_eval:
+    enabled: true
+    interval: 500
+    max_steps: 500
+  downstream_tasks:
+    enabled: true
+    interval: 500
+    max_steps: 500
+
+# Optimizer
+learning_rate: 1e-5  # continuing from the final LR of the annealing phase
+weight_decay: 0.1
+betas: [0.9, 0.95]
+z_loss_multiplier: 0
+max_grad_norm: 1.0
+optimizer_compile: false
+
+# Scheduler
+scheduler:
+  type: WSD
+  # context restoration
+  # 1 epoch of long-context is 3124 steps.
+  # - decay: 3124 (1 epoch) - 100 warmup
+  # - need to reach 1e-6 after 900 steps out of 1024 -> but cannot be negative???
+  warmup_min_lr: 1e-6  # ramps 1e-6 → 1e-5; must be < learning_rate to be meaningful
+  decay_min_lr: 1e-6  # one decade below start LR of 1e-5
+  warmup_steps: 10   # short warmup on new data distribution (ramps 1e-6 → 1e-5)
+  decay_fraction: null
+  decay_steps: 90 # 3124 (1 epoch full) - 100 warmup
+
+
+# rope for keeping 32k context
+rope_scaling:
+  type: YaRNRoPEScalingConfig
+  factor: 8
+  beta_fast: 32
+  beta_slow: 1
+  old_context_len: 4096
+
+run_name: OLMo-core-${model_name}-mbs-${per_device_batch_size}-gas-${gradient_accumulation_steps}-nodes-${num_nodes}-${oc.env:SLURM_JOB_ID,""}

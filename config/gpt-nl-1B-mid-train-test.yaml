@@ -1,0 +1,59 @@
+num_nodes: ${oc.env:SLURM_JOB_NUM_NODES,1}
+seed: 47
+per_device_batch_size: ${oc.env:PER_DEVICE_BATCH_SIZE,2}
+gradient_accumulation_steps: ${oc.env:GRADIENT_ACCUMULATION_STEPS,1}
+
+# Training setup
+max_duration:
+  tokens: -1
+  epochs: 1
+hard_stop: 10  # just 10 steps to verify everything works
+load_path: null  # no checkpoint loading for the test
+
+# Model
+model_name: llama3-1B
+sequence_length: 4096
+tokenizer_name: gpt-nl
+model_compile: true
+use_flash_attention_2: true
+
+# Checkpoint
+save_dir: ${oc.env:CHECKPOINT_DIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/checkpoints/test-1B-${oc.env:SLURM_JOB_ID,""}}
+work_dir: ${oc.env:TMPDIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/${oc.env:USER}}
+save_interval: 1000  # effectively no saving for a 10-step test
+ephemeral_save_interval: 500
+save_async: true
+
+# Data — same mid-training data as the real run
+num_workers: 0
+data_root: /INSERT-GPT-NL-TRAINING-DIR/instruction-finetuning/rl-datasets/final/midtraining/train/*.npy
+restart_with_new_data: true
+data_root_val:
+  - /INSERT-GPT-NL-TRAINING-DIR/instruction-finetuning/rl-datasets/final/midtraining/test/*.npy
+
+# Evaluation — disabled for speed
+evaluation:
+  lm_eval:
+    enabled: false
+    interval: 1000
+    max_steps: 10
+  downstream_tasks:
+    enabled: false
+    interval: 1000
+    max_steps: 10
+
+# Optimizer
+learning_rate: 1e-5
+weight_decay: 0.1
+betas: [0.9, 0.95]
+z_loss_multiplier: 0
+max_grad_norm: 1.0
+optimizer_compile: false
+
+# Scheduler
+scheduler:
+  type: ConstantWithWarmup
+  warmup_steps: 5
+  warmup_min_lr: 1e-6
+
+run_name: test-1B-midtrain-${oc.env:SLURM_JOB_ID,""}

@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --job-name=euroeval
+#SBATCH --partition=gpu_h100
+#SBATCH --time=02:00:00
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=2
+# SBATCH --reservation=gpt-nl
+#SBATCH --output=logs/%j.out
+#SBATCH --error=logs/%j.err
+
+set -e
+
+srun scripts/evaluation/euroeval.sh $@

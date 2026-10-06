@@ -1,0 +1,135 @@
+# /INSERT-GPT-NL-TRAINING-DIR/mid-train
+
+num_nodes: ${oc.env:SLURM_JOB_NUM_NODES,1}
+seed: 47
+per_device_batch_size: ${oc.env:PER_DEVICE_BATCH_SIZE,2}
+gradient_accumulation_steps: ${oc.env:GRADIENT_ACCUMULATION_STEPS,4}
+
+# Training setup
+max_duration:
+  tokens: -1 # limit by tokens (-1 means disabled)
+  #increased to 4 for annealing
+  epochs: 6 # limit epochs (increase this by 1 at the end of epoch) 
+hard_stop: ${oc.env:HARD_STOP,-1}
+load_path: ${oc.env:LOAD_PATH, null}
+
+# Model
+model_name: llama3-26B
+sequence_length: 16384  # mid-training at 16K (model was context-extended to 32K)
+tokenizer_name: gpt-nl
+model_compile: true
+use_flash_attention_2: true
+
+
+# Checkpoint
+save_dir: ${oc.env:CHECKPOINT_DIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/checkpoints/${model_name}-mbs-${per_device_batch_size}-gas-${gradient_accumulation_steps}-${oc.env:SLURM_JOB_ID,""}}
+work_dir: ${oc.env:TMPDIR, /INSERT-GPT-NL-TRAINING-DIR/mid-train/${oc.env:USER}}
+save_interval: 880 # to do perfect resume on (22, 20, 11, 10, 5, 2) nodes without data repetition # https://ci.tno.nl/gitlab/gpt-nl/model-development/pytorch_native/-/issues/15. 
+ephemeral_save_interval: 110 # with this one still can do perfect resume on (22, 11, 10, 5, 2) nodes
+save_async: true
+
+# Data 
+num_workers: 0
+# main phase
+# data_root: /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/train_datamixtures/primary/*.npy # Epoch 1
+# data_root: /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/train_datamixtures/primary/*.npy # Epoch 2 & 3
+# annealing phase
+#changed the root to the annealing one
+# data_root: /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/train_datamixtures/annealing/*.npy 
+data_root: /INSERT-GPT-NL-TRAINING-DIR/instruction-finetuning/rl-datasets/final/midtraining/train/*.npy
+# set this to true only on the first run with a new dataset, then set again to false
+# TODO: change this back to false after the first run
+#updated it to true for annealing
+restart_with_new_data: true
+data_root_val:
+  # Mid Training
+  - /INSERT-GPT-NL-TRAINING-DIR/instruction-finetuning/rl-datasets/final/midtraining/test/*.npy
+
+  # - /INSERT-GPT-NL-DATALOADER-DIR/dataset/sample-gpt_nl_dataset_v1.0_tokenized/val/*.npy # just to test (proper validation below raises `RuntimeError: Failed to produce any documents from`)
+  
+  # Epoch 1
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/code/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/dutch_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/dutch_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/english_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/english_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_1.0_tokenized/splitted_buckets_validate/other_languages/*.npy
+  
+  # DEBUG Epoch 1 to Epoch 2
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_code/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_dutch_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_dutch_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_english_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_english_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_1_other_languages/*.npy
+
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_code/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_dutch_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_dutch_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_english_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_english_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_new_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_new_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/debug_sets/epoch_2_other_languages/*.npy
+  
+  # Epoch 2
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/code/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/dutch_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/dutch_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/english_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/english_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/new_high_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/new_low_medium_quality/*.npy
+  # - /INSERT-GPT-NL-TRAINING-DIR/gpt_nl_dataset_v2.0_tokenized/buckets_split_validate/other_languages/*.npy
+
+
+# Evaluation
+evaluation:
+  lm_eval:
+    enabled: true
+    interval: 500
+    max_steps: 500
+  downstream_tasks:
+    enabled: true
+    interval: 500
+    max_steps: 500
+
+# Optimizer
+learning_rate: 1e-5  # continuing from the final LR of the annealing phase
+weight_decay: 0.1
+betas: [0.9, 0.95]
+z_loss_multiplier: 0
+max_grad_norm: 1.0
+optimizer_compile: false
+
+# Scheduler
+scheduler:
+  type: WSD
+  warmup_min_lr: 1e-6  # ramps 1e-6 → 1e-5; must be < learning_rate to be meaningful
+  decay_min_lr: 1e-6  # one decade below start LR of 1e-5
+
+  # # for the primary datamix phase, first epoch, warmup LR at the beginning
+  # warmup_steps: 2000
+  # decay_steps: 0
+
+  # for epoch 2+ of primary datamix, keeping constant LR
+  #warmup_steps: 0
+  #warmup_delay: 0
+  #decay_steps: 0
+
+  # Uncommented this for annealing
+  # # for the last datamix phase (annealing), LR will go triangularly down
+  warmup_steps: 143888   # restore from step143788 + 100 short warmup on new data distribution (ramps 1e-6 → 1e-5)
+  # decay_fraction: 0.1 # decay over last 10% of training; scheduler computes steps automatically
+  decay_steps: 229 # set to 10% of the 2296 mid-training steps. decay_fraction would be on the whole 146084 steps (counting all previous epochs)
+#  decay_fraction: 0.15 # ANNEALING_RATIO / primary_epochs (no problem of world size changing)
+
+run_name: OLMo-core-${model_name}-mbs-${per_device_batch_size}-gas-${gradient_accumulation_steps}-nodes-${num_nodes}-${oc.env:SLURM_JOB_ID,""}
+
+# Factor of 4 for 4096 -> 16384
+rope_scaling:
+  type: YaRNRoPEScalingConfig
+  factor: 8
+  beta_fast: 32
+  beta_slow: 1
+  old_context_len: 4096

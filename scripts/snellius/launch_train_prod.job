@@ -1,0 +1,92 @@
+#!/bin/bash
+#SBATCH --job-name=gptnl-pretrain-prod
+#SBATCH --partition=gpu_h100
+#SBATCH --time=5-0
+#SBATCH --nodes=22
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --exclusive
+#SBATCH --gpus-per-node=4
+#SBATCH --reservation=gpt-nl
+#SBATCH --output=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs/%j.out
+#SBATCH --error=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs/%j.err
+#SBATCH --signal=TERM@60
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=notificationsforgptnl@gmail.com
+
+set -e
+# sync code and block
+git_status=$(git status --untracked-files=no --porcelain)
+if [ -n "$git_status" ]; then 
+    # Working directory clean excluding untracked files
+    echo "git dirty"
+    exit 1
+fi
+
+git_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$git_branch" != "main" ]; then
+    echo "git not on main"
+    exit 1
+fi
+
+this may fail if your ssh key requires keyphrase
+# or if you cloned via https instead of ssh
+git fetch origin main
+local_commit=$(git rev-parse HEAD)
+remote_commit=$(git rev-parse origin/main)
+if [ "$local_commit" != "$remote_commit" ]; then
+  echo "local ($local_commit) and origin/main ($remote_commit) not on same commit"
+  exit 1
+fi
+
+export SLURM_OUTPUT=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs
+mkdir -p $SLURM_OUTPUT
+ln -sf "${SLURM_OUTPUT}/${SLURM_JOB_ID}.out" "${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}.out"
+ln -sf "${SLURM_OUTPUT}/${SLURM_JOB_ID}.err" "${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}.err"
+
+export AUTO_RESTART=0
+export PROFILING=""
+export GPU_HEALTH_CHECK=""
+export TRAIN_MODE="prod"
+export MODEL_SIZE="26B"
+export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-17561783/step140664/"
+
+# params for main epochs
+# export PER_DEVICE_BATCH_SIZE=12
+# export GRADIENT_ACCUMULATION_STEPS=3
+
+# params for phase 3: long-context/annealing
+export PER_DEVICE_BATCH_SIZE=1
+export GRADIENT_ACCUMULATION_STEPS=4
+export PROJECT_SUFFIX="-context"
+export PROJECT_SPACE=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core
+export LAUNCH_JOBFILE=launch_train_prod.job
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --profiling) export PROFILING=true ;;
+        --gpu-health-check) export GPU_HEALTH_CHECK=true ;;
+        --profiling=*) export PROFILING="${1#*=}" ;;
+        --gpu-health-check=*) export GPU_HEALTH_CHECK="${1#*=}" ;;
+        --auto-restart)
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                export AUTO_RESTART="$2"
+                shift  # Extra shift to consume the number argument
+            else
+                echo "Error: --auto-restart requires a numeric value"
+                exit 1
+            fi
+            ;;
+        --auto-restart=*)
+            export AUTO_RESTART="${1#*=}"
+            if [[ ! "$AUTO_RESTART" =~ ^[0-9]+$ ]]; then
+                echo "Error: --auto-restart requires a numeric value"
+                exit 1
+            fi
+            ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+srun scripts/snellius/train.sh "$@"

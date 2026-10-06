@@ -1,0 +1,74 @@
+#!/bin/bash
+#SBATCH --job-name=gptnl-pretrain-debug
+#SBATCH --partition=gpu_h100
+#SBATCH --time=0:20:00
+#SBATCH --nodes=8
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --exclusive
+#SBATCH --gpus-per-node=4
+#SBATCH --reservation=gpt-nl
+#SBATCH --output=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs/%j.out
+#SBATCH --error=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs/%j.err
+#SBATCH --signal=TERM@60
+
+
+export SLURM_OUTPUT=/INSERT-GPT-NL-TRAINING-DIR/olmo-logs
+mkdir -p $SLURM_OUTPUT
+ln -sf "${SLURM_OUTPUT}/${SLURM_JOB_ID}.out" "${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}.out"
+ln -sf "${SLURM_OUTPUT}/${SLURM_JOB_ID}.err" "${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}.err"
+
+# some flags to debug
+# export CUDA_LAUNCH_BLOCKING=1
+# export TORCH_USE_CUDA_DSA=1
+# export NCCL_DEBUG=INFO
+
+export AUTO_RESTART=0
+export PROFILING=""
+export GPU_HEALTH_CHECK=""
+export TRAIN_MODE="debug"
+export MODEL_SIZE="26B"
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-1-mbs-12-gas-3-12493839/step170" # 1B
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-20-mbs-12-gas-3-12447809/step2277" # 26B
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-1-mbs-12-gas-3-12573769/step200"
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-1-mbs-12-gas-3-12574354/step220"
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-1-mbs-12-gas-3-12640102/step214" # epoch 2
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-2-mbs-12-gas-3-12640396/step321" # annealing start
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-1B-nodes-2-mbs-12-gas-3-12663730/step330" # annealing continue
+# export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-20-mbs-12-gas-3-12639729/step10348" # from prod 26B
+export LOAD_PATH="/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-15403787/step111540" # from prod 26B
+
+export PER_DEVICE_BATCH_SIZE=12
+export GRADIENT_ACCUMULATION_STEPS=3
+export PROJECT_SUFFIX="-debug"
+export PROJECT_SPACE=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core-debug
+export LAUNCH_JOBFILE=launch_train_debug.job
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --profiling) export PROFILING=true ;;
+        --gpu-health-check) export GPU_HEALTH_CHECK=true ;;
+        --profiling=*) export PROFILING="${1#*=}" ;;
+        --gpu-health-check=*) export GPU_HEALTH_CHECK="${1#*=}" ;;
+        --auto-restart)
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                export AUTO_RESTART="$2"
+                shift  # Extra shift to consume the number argument
+            else
+                echo "Error: --auto-restart requires a numeric value"
+                exit 1
+            fi
+            ;;
+        --auto-restart=*)
+            export AUTO_RESTART="${1#*=}"
+            if [[ ! "$AUTO_RESTART" =~ ^[0-9]+$ ]]; then
+                echo "Error: --auto-restart requires a numeric value"
+                exit 1
+            fi
+            ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+srun scripts/snellius/train.sh "$@"

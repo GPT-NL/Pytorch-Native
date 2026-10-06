@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=staging
+#SBATCH --time=30:00:00
+
+
+
+PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13594524/
+ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13594524.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13594524/
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13594524
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-20-mbs-12-gas-3-12516063
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-20-mbs-12-gas-3-12516063.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13233733 
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13233733.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13334395 
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13334395.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-12891307
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-12891307.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13196631
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13196631.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-12967709
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-12967709.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13009295/
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13009295.tar.gz
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13143220
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13143220.tar.gz
+
+
+#PROJECT_PATH=/INSERT-GPT-NL-TRAINING-DIR/OLMo-core/gpt-nl-26B-nodes-22-mbs-12-gas-3-13143220
+#ARCHIVE_PATH=/archive/gpt-nl/checkpoints/gpt-nl-26B-nodes-22-mbs-12-gas-3-13143220.tar.gz 
+
+tar --use-compress-program='zstd -T0' -cf $ARCHIVE_PATH  $PROJECT_PATH

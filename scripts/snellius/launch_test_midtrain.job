@@ -1,0 +1,78 @@
+#!/bin/bash
+#SBATCH --job-name=test-midtrain-1B-22n
+#SBATCH --partition=gpu_h100
+#SBATCH --time=00:30:00
+#SBATCH --nodes=22
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gpus-per-node=4
+#SBATCH --output=logs/%j.out
+#SBATCH --error=logs/%j.err
+
+set -e
+
+# ============================================================================
+# ENVIRONMENT
+# ============================================================================
+module purge
+module load 2024 NCCL/2.22.3-GCCcore-13.3.0-CUDA-12.6.0
+
+export VENV_PATH=$PWD/venv
+source $VENV_PATH/bin/activate
+
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}
+export OLMO_SHARED_FS=1
+
+# ============================================================================
+# DISTRIBUTED
+# ============================================================================
+export MASTER_ADDR=$(scontrol show hostnames | head -n 1)
+export MASTER_PORT=39591
+
+# ============================================================================
+# WANDB
+# ============================================================================
+source scripts/snellius/.env
+export WANDB_PROJECT="GPT-NL-test"
+export WANDB_MODE=offline  # don't pollute W&B for test runs
+
+# ============================================================================
+# CONFIG
+# ============================================================================
+export PER_DEVICE_BATCH_SIZE=2
+export GRADIENT_ACCUMULATION_STEPS=1
+export CONFIG_PATH=$PWD/config/gpt-nl-1B-mid-train-test.yaml
+export CHECKPOINT_DIR="/INSERT-GPT-NL-TRAINING-DIR/mid-train/checkpoints/test-1B-$SLURM_JOB_ID"
+
+# ============================================================================
+# LAUNCH — cache dirs MUST be set inside srun (SLURM overrides TMPDIR per-node)
+# ============================================================================
+srun bash -c '
+# TMPDIR must be shared (all nodes same path) for global data indices.
+# Cache dirs are per-node to avoid rm -rf race.
+SHARED_BASE="/scratch-shared/$USER/cache/$SLURM_JOBID"
+NODE_CACHE="${SHARED_BASE}/node_${SLURM_NODEID}"
+export TMPDIR="${SHARED_BASE}/tmp"
+
+export TORCHINDUCTOR_CACHE_DIR="${NODE_CACHE}/inductor_${SLURM_PROCID}"
+export TRITON_CACHE_DIR="${NODE_CACHE}/triton_${SLURM_PROCID}"
+export XDG_CACHE_HOME="${NODE_CACHE}/xdg_${SLURM_PROCID}"
+rm -rf "$NODE_CACHE"
+mkdir -p $TMPDIR $TORCHINDUCTOR_CACHE_DIR $TRITON_CACHE_DIR $XDG_CACHE_HOME/torch/kernels
+
+# NCCL diagnostics
+export NCCL_DEBUG=WARN
+export NCCL_DEBUG_SUBSYS=INIT,COLL
+export TORCH_NCCL_TRACE_BUFFER_SIZE=1000
+export NCCL_TIMEOUT=1800000
+
+torchrun \
+  --nproc_per_node=$SLURM_GPUS_PER_NODE \
+  --nnodes=$SLURM_NNODES \
+  --rdzv_id=$SLURM_JOBID \
+  --rdzv_backend=c10d \
+  --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
+  --master_addr=$MASTER_ADDR \
+  --master_port=$MASTER_PORT \
+  scripts/train_context.py $CONFIG_PATH
+'

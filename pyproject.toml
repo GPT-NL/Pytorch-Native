@@ -1,0 +1,147 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "GPTNL_pytorch_native"
+dynamic = ["version"]
+readme = "README.md"
+description = "Pytorch Native implementation build on top of OLMo (AllenAI)."
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+
+
+dependencies = [
+    "ai2-olmo-core @ git+ssh://git@ci.tno.nl/gpt-nl/model-development/olmo-core.git@main#[all]",
+    "tokenizers",
+    "tiktoken",
+    "energy-utils@git+ssh://git@ci.tno.nl/gpt-nl/model-development/energy-utils.git",
+    "mergekit==0.1.4", # for context-reconstruction
+]
+
+[project.optional-dependencies]
+train = [
+    # "smashed[remote]>=0.21.1",
+    # "msgspec>=0.14.0",
+    "torch==2.7.0",
+]
+inference = [
+    "transformers",
+    "blobfile",
+    "vllm<0.10.0", # compatible with torch==2.7.0
+    "accelerate",
+    # "flashinfer-python", # would make inference faster with vllm, but stuck on Installing backend dependencies
+]
+evaluation = [
+    "euroeval[all]>=15.16.0", # this one does not want flash-attn, but is needed to avoid some euroeval errors: https://github.com/EuroEval/EuroEval/pull/1090
+]
+all = [
+    "GPTNL_pytorch_native[train,inference,evaluation]",
+]
+
+[tool.setuptools]
+include-package-data = true
+py-modules = []
+
+
+[tool.black]
+line-length = 115
+include = '\.pyi?$'
+exclude = '''
+(
+      __pycache__
+    | \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.vscode
+    | \.venv
+    | \.venv_eval
+    | \.venv_core
+    | \bdist\b
+    | \bdoc\b
+    | pretrain_data/
+    | inference/
+)
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+extend_skip = ["pretrain_data", "tokenizer"]
+
+[tool.ruff]
+line-length = 115
+lint.ignore = ["F403", "F405", "E501"]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".venv",
+    "venv",
+    "venv_core",
+    "venv_eval",
+    ".mypy_cache",
+    "__pycache__",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "doc",
+    "pretrain_data",
+    "inference",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]
+
+[tool.pyright]
+reportPrivateImportUsage = false
+exclude = [
+    "pretrain_data/",
+    "tokenizer/",
+    "**/venv",
+    "**/venv_core",
+    "**/venv_eval",
+    "**/wandb",
+    "venv",
+    "venv_core",
+    "venv_eval",
+    "wandb"
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_site_packages = true
+check_untyped_defs = true
+exclude = ["pretrain_data/", "inference/compression/dependencies/", "inference/efficiency/dependencies/"]
+no_namespace_packages = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict_optional = false
+
+[tool.pytest.ini_options]
+testpaths = "tests/"
+python_classes = [
+  "Test*",
+  "*Test",
+]
+log_format = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+log_level = "DEBUG"
+markers = [
+    "gpu",
+]
+filterwarnings = [
+    'ignore::FutureWarning:huggingface_hub\.file_download',
+    'ignore::DeprecationWarning:pkg_resources',
+    'ignore::DeprecationWarning:google\.rpc',
+]

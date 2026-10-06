@@ -1,93 +1,109 @@
-# Pytorch Native OS
+<div style="text-align: center;">
 
+  <h1>
+    <a href="https://gpt-nl.nl/" target="_blank"><img src="https://gpt-nl.nl/publish/pages/5180/beeldmerk-gpt_nl.svg" alt="GPT-NL" width="200"></a>
+    <br>
+    GPT-NL Pre-training scripts
+  </h1>
 
+#### Training and evaluation, supporting the construction of the <a href="https://gpt-nl.nl" target="_blank">GPT-NL</a> model.
 
-## Getting started
+<a href="#installation">Installation</a> &nbsp;&middot;&nbsp;
+<a href="#usage">Usage</a> &nbsp;&middot;&nbsp;
+<a href="#development-notes">Development notes</a>
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+</div>
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+> This repository is part of [GPT-NL](https://gpt-nl.nl/), a responsible alternative to existing language models, using lawfully obtained Dutch data and sharing proceeds with copyright holders to promote fairness and strengthen Europe's digital position.
+> We aim to be as transparent as possible about how the model has been created. This open source repository should be considered as an effort to support this transparency and fairness, not to be seen as a working product of any kind.  
+> For any questions regarding GPT-NL, check our [website](https://gpt-nl.nl/). Any questions regarding this specific repository can be sent to [Anne Stijns](mailto:anne.stijns@tno.nl) or submitted as an issue in the issue tracker of this repository.
 
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://ci.tno.nl/gitlab/gpt-nl/model-development/pytorch-native-os.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-* [Set up project integrations](https://ci.tno.nl/gitlab/gpt-nl/model-development/pytorch-native-os/-/settings/integrations)
-
-## Collaborate with your team
-
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+This repository contains scripts used to train GPT-NL on a SLURM runner and evaluate its performance.
+Performance is evaluated using [EuroEval](https://euroeval.com/), among others.
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+To install the repository, you need to:
+
+1. Make sure you are cloning via ssh and that you don't have a passphrase on your ssh key (otherwise pulling inside the production job will fail)
+2. `./scripts/installation/install_olmo_snellius.sh`: creates a local environment at `./venv`
+
+### Set up build directories
+
+To train GPT-NL, various directories need to be setup to store tokenized from [the GPT-NL data loader](https://github.com/GPT-NL/dataloader), checkpoints during training, et cetera.
+This open-source repository uses some placeholders for these directories:
+
+|Placeholder text| Directory purpose | Example |
+|---|---|---|
+|INSERT-GPT-NL-DATALOADER-DIR| Tokenized inputs from the GPT-NL data loader | `/GPT-NL/dataloader/`
+|INSERT-GPT-NL-TRAINING-DIR| Checkpoints, debug datasets, and context lengethening weights | `/GPT-NL/training/`
+|INSERT-GPT-NL-ROOT-DIR| Scratch space during training | `/GPT-NL/`
+
+The placeholders can be replaced with actual values using a text replacement tool such as [sed](https://linux.die.net/man/1/sed).
+Edit `project-placeholders.sed` to fit your configuration, then run
+
+```bash
+rg '/INSERT-GPT-NL-[[:alpha:]]+-DIR/' -c | cut -d : -f 1 | xargs sed -i -f project-placeholders.sed
+```
+
+###  Setting up experiments
+
+Create `./scripts/snellius/.env` with the following content
+
+```bash
+export WANDB_ENTITY=<INSERT-USER-HERE>
+export WANDB_API_KEY=<INSERT-KEY-HERE> # get from https://wandb.ai/authorize
+export HF_KEY=<INSERT-KEY_HERE> # get from https://huggingface.co/settings/tokens to run euroeval for HF models online
+```
+
+<!--
+Consider:
+
+- You can assume a basic level of understanding. Not _every_ step has to be explained extensively - often listing the commands is sufficient. Example: you don't have to explain the concept of virtual environments.
+- Be complete and assume that people are starting fresh. Example: don't assume people have a specific conda or a specific Python version.
+- People use different operating systems.
+-->
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+This repository has two slurm jobs to start GPT-NL training
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```
+# for production (real training, automatically pulls and switches to main)
+sbatch scripts/snellius/launch_train_prod.job --auto-restart 1
+# for debug (no notifications and no main required, to test out things)
+sbatch scripts/snellius/launch_train_debug.job
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Arguments:
+   --profiling   run NVIDIA Nsight Systems (nsys) profiler. Adjust stop_at to 7 steps
+   --gpu-health-check   perform GPU health check on all requested nodes
+   --auto-restart <int>    upon 60 seconds before walltime expiration, re-submit the job from the latest checkpoint <int> number of times
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+See scripts/snellius/launch_train_prod.job for more information
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### EuroEval
 
-## License
-For open source projects, say how it is licensed.
+For running EuroEval, you need first to create a separate python environment with `bash scripts/evaluation/install_eval.sh` which will create an environment in the folder `./venv_eval`. Conflicts between EuroEval and flash-attn make this necessary.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+To run [EuroEval](https://github.com/EuroEval/EuroEval/) on a checkpoint:
+1. run conversion + evaluation with `sbatch scripts/evaluation/run_euroeval.sh <CHECKPOINT_PATH>`:
+  a. if you pass a OLMO-core checkpoint path, it will be converted first
+  b. if you pass a checkpoint already converted at `/INSERT-GPT-NL-TRAINING-DIR/converted_checkpoints`, only evaluation will be done
+
+
+This will convert the checkpoint to HF format (if not already in folder), run the Euroeval benchmark and write the results to Wandb (and to json file in checkpoint dir) in: `https://wandb.ai/<INSERT-USER-HERE>/euroeval/workspace`
+
+## Development notes
+
+### Updating base OLMo-core code
+GPT-NL uses a fork of OLMo-core with patches specific to the GPT-NL model.
+This fork is available [here](https://github.com/GPT-NL/OLMo-core).
+Making changes to the code based on the original OLMo-core ai2-olmo-core package is done through the fork.
+
+Then make sure you reinstall the updated `olmo-core` dependency by using `scripts/installation/update_olmo_local_environment.sh`.
+
+### Inference
+
+In the [scripts/inference](./scripts/inference/) folder you can find the conversion script to load the model with huggingface.
